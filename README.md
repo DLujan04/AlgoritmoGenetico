@@ -1,60 +1,44 @@
-# Algoritmo Genético — Problema de la Mochila (Fallout)
+# Algoritmo Genetico — Problema de la Mochila (Fallout)
 
-Implementación de un algoritmo genético fusionado para resolver el problema de la mochila, ambientado en el universo de Fallout. El objetivo es seleccionar los ítems de mayor valor sin superar la capacidad máxima de carga.
+Implementacion de un algoritmo genetico para resolver el problema de la mochila, ambientado en el universo de Fallout. Selecciona los items de mayor valor sin superar la capacidad maxima de carga.
 
-## Archivos
+## Archivo
 
-| Archivo | Descripción |
+| Archivo | Descripcion |
 |---|---|
-| `ga_fallout_fusion.py` | Implementación principal del algoritmo genético |
-| `tests_ga.py` | Suite de pruebas: unitarias, integración y casos borde |
-| `ga_fusion.png` | Gráfica generada al ejecutar el algoritmo (se crea automáticamente) |
+| `ga_fallout_fusion.py` | Algoritmo genetico completo + pruebas integradas |
 
 ## Requisitos
 
-- Python 3.10 o superior
-- matplotlib
+- Python 3.10+
+- Sin dependencias externas
 
-### Instalación de dependencias
-
-```bash
-pip install matplotlib
-```
-
-## Ejecución
-
-### Ejecutar el algoritmo genético
+## Ejecucion
 
 ```bash
+# Ejecutar el algoritmo
 python ga_fallout_fusion.py
+
+# Ejecutar las pruebas (8 secciones, ~25 casos)
+python ga_fallout_fusion.py --test
 ```
 
-Imprime el progreso por generación, el inventario final seleccionado y guarda la gráfica `ga_fusion.png` en la misma carpeta.
+## Parametros
 
-### Ejecutar las pruebas
-
-```bash
-python tests_ga.py
-```
-
-Corre 23 pruebas divididas en 8 secciones y muestra un resumen `PASS/FAIL` al final.
-
-## Parámetros del algoritmo
-
-| Parámetro | Valor | Descripción |
+| Parametro | Valor | Descripcion |
 |---|---|---|
-| `POP_SIZE` | 50 | Tamaño de la población |
+| `POP_SIZE` | 50 | Tamano de la poblacion |
 | `PC` | 0.70 | Probabilidad de crossover |
-| `PM` | 0.20 | Probabilidad de mutación |
-| `PR` | 0.10 | Probabilidad de reproducción (elitismo) |
-| `MAX_GEN` | 150 | Máximo de generaciones |
-| `TORNEO_K` | 3 | Participantes por torneo de selección |
+| `PM` | 0.20 | Probabilidad de mutacion |
+| `PR` | 0.10 | Probabilidad de reproduccion (elitismo) |
+| `MAX_GEN` | 150 | Maximo de generaciones |
+| `TORNEO_K` | 3 | Participantes por torneo |
 | `CONV_PATIENCE` | 30 | Generaciones sin mejora para detener |
-| `PESO_MAXIMO` | 30 | Capacidad máxima de la mochila (kg) |
+| `PESO_MAXIMO` | 30 | Capacidad maxima (kg) |
 
-## Operadores genéticos
+## Operadores geneticos
 
-- **Selección:** Torneo de tamaño k=3
-- **Crossover:** Punto de corte aleatorio (single-point)
-- **Mutación:** Bit-flip por gen con probabilidad `PM_GEN = 0.15`
-- **Reemplazo:** Generacional completo
+- **Seleccion:** Torneo de tamano k=3
+- **Crossover:** Single-point con punto aleatorio
+- **Mutacion:** Bit-flip por gen (PM_GEN = 0.15)
+- **Reemplazo:** Generacional completo con elitismo (PR=10%)

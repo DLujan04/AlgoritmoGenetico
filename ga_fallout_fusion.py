@@ -1,14 +1,6 @@
+import sys, random
 
-import os
-import random
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Definición de ítems: (nombre, peso, valor)
+# Items: (nombre, peso, valor)
 ITEMS = [
     ("Stimpak",          1,  10),
     ("Nuka-Cola",        3,  15),
@@ -16,244 +8,215 @@ ITEMS = [
     ("Servoarmadura",   25, 100),
     ("Med-X",            1,  12),
     ("Chatarra",         5,   5),
-    ("Nucleo de Fusion", 8,  40),
-    ("Caja de Municion", 4,  20),
+    ("Nucleo de Fusion",  8,  40),
+    ("Caja de Municion",  4,  20),
 ]
 PESO_MAXIMO = 30
 N_GENES     = len(ITEMS)
 
-# Parámetros del algoritmo genético
-POP_SIZE = 50
-PC       = 0.70   # probabilidad de crossover
-PM       = 0.20   # probabilidad de mutación
-PR       = 0.10   # probabilidad de reproducción
-assert abs(PC + PM + PR - 1.0) < 1e-9, "PC + PM + PR debe ser igual a 1"
-
-MAX_GEN         = 150
-TORNEO_K        = 3     # participantes en torneo de selección
-CONV_PATIENCE   = 30    # generaciones sin mejora para detener
-SEED            = 42
-
-# Función de aptitud con penalización por exceso de peso
-def calcular_fitness(cromosoma: list[int]) -> float:
-    peso_total  = sum(cromosoma[i] * ITEMS[i][1] for i in range(N_GENES))
-    valor_total = sum(cromosoma[i] * ITEMS[i][2] for i in range(N_GENES))
-
-    if peso_total > PESO_MAXIMO:
-        exceso = peso_total - PESO_MAXIMO
-        return max(0.0, valor_total - exceso * 8)
-    return float(valor_total)
-
-def peso_y_valor(cromosoma: list[int]) -> tuple[float, float]:
-    """Retorna (peso, valor) sin penalización."""
-    peso  = sum(cromosoma[i] * ITEMS[i][1] for i in range(N_GENES))
-    valor = sum(cromosoma[i] * ITEMS[i][2] for i in range(N_GENES))
-    return peso, valor
-
-def make_population(size: int) -> list[list[int]]:
-    return [[random.randint(0, 1) for _ in range(N_GENES)]
-            for _ in range(size)]
-
-# Selección por torneo: elige el mejor entre k candidatos aleatorios
-def seleccion_torneo(poblacion: list, k: int = TORNEO_K) -> list[int]:
-    participantes = random.sample(poblacion, k)
-    return max(participantes, key=calcular_fitness)[:]
-
-def crossover(padre1: list[int], padre2: list[int]) -> tuple[list[int], list[int]]:
-    punto  = random.randint(1, N_GENES - 1)
-    hijo1  = padre1[:punto] + padre2[punto:]
-    hijo2  = padre2[:punto] + padre1[punto:]
-    return hijo1, hijo2
-
-PM_GEN = 0.15   # probabilidad de mutar cada gen individual
-
-# Mutación bit-flip: invierte cada gen con probabilidad PM_GEN
-def mutacion(cromosoma: list[int]) -> list[int]:
-    return [gen ^ 1 if random.random() < PM_GEN else gen
-            for gen in cromosoma]
+# Parametros del AG
+POP_SIZE      = 50
+PC, PM, PR    = 0.70, 0.20, 0.10   # crossover, mutacion, reproduccion
+assert abs(PC + PM + PR - 1.0) < 1e-9, "PC + PM + PR debe ser 1"
+MAX_GEN       = 150
+TORNEO_K      = 3
+CONV_PATIENCE = 30
+PM_GEN        = 0.15   # prob. de mutar cada gen
+SEED          = 42
 
 
-def ejecutar_ag(verbose: bool = True) -> dict:
+def calcular_fitness(c):
+    peso  = sum(c[i] * ITEMS[i][1] for i in range(N_GENES))
+    valor = sum(c[i] * ITEMS[i][2] for i in range(N_GENES))
+    return max(0.0, valor - max(0, peso - PESO_MAXIMO) * 8)
+
+
+def peso_y_valor(c):
+    return (sum(c[i] * ITEMS[i][1] for i in range(N_GENES)),
+            sum(c[i] * ITEMS[i][2] for i in range(N_GENES)))
+
+
+def make_population(size):
+    return [[random.randint(0, 1) for _ in range(N_GENES)] for _ in range(size)]
+
+
+def seleccion_torneo(pop, k=TORNEO_K):
+    return max(random.sample(pop, k), key=calcular_fitness)[:]
+
+
+def crossover(p1, p2):
+    pt = random.randint(1, N_GENES - 1)
+    return p1[:pt] + p2[pt:], p2[:pt] + p1[pt:]
+
+
+def mutacion(c):
+    return [g ^ 1 if random.random() < PM_GEN else g for g in c]
+
+
+def ejecutar_ag(verbose=True):
     random.seed(SEED)
-
-    poblacion = make_population(POP_SIZE)
-    if verbose:
-        print(f"Poblacion inicial creada ({POP_SIZE} individuos, {N_GENES} genes)")
-
-    mejor_historia  = []
-    prom_historia   = []
-    div_historia    = []
+    pop = make_population(POP_SIZE)
+    mejor_h, prom_h, div_h = [], [], []
 
     for gen in range(MAX_GEN):
-
-        fitnesses   = [calcular_fitness(ind) for ind in poblacion]
-        mejor_fit   = max(fitnesses)
-        prom_fit    = sum(fitnesses) / len(fitnesses)
-        diversidad  = len(set(tuple(ind) for ind in poblacion))
-
-        mejor_historia.append(mejor_fit)
-        prom_historia.append(prom_fit)
-        div_historia.append(diversidad)
+        fits = [calcular_fitness(ind) for ind in pop]
+        mejor_h.append(max(fits))
+        prom_h.append(sum(fits) / len(fits))
+        div_h.append(len(set(tuple(ind) for ind in pop)))
 
         if verbose and gen % 25 == 0:
-            print(f"  Gen {gen:3d} | Mejor: {mejor_fit:.1f} | "
-                  f"Prom: {prom_fit:.1f} | Unicos: {diversidad}/{POP_SIZE}")
+            print(f"  Gen {gen:3d} | Mejor: {mejor_h[-1]:.1f} | Prom: {prom_h[-1]:.1f} | Unicos: {div_h[-1]}/{POP_SIZE}")
 
-        # Criterio de convergencia: sin mejora en CONV_PATIENCE generaciones
-        if gen >= CONV_PATIENCE:
-            if mejor_historia[-1] == mejor_historia[-CONV_PATIENCE]:
-                if verbose:
-                    print(f"\n  Convergencia en generacion {gen}")
-                break
+        if gen >= CONV_PATIENCE and mejor_h[-1] == mejor_h[-CONV_PATIENCE]:
+            if verbose: print(f"\n  Convergencia en generacion {gen}")
+            break
 
-        nueva_poblacion = []
-
-        while len(nueva_poblacion) < POP_SIZE:
+        nueva = []
+        while len(nueva) < POP_SIZE:
             r = random.random()
-
             if r < PR:
-                # Reproducción: elitismo directo
-                idx_mejor = fitnesses.index(max(fitnesses))
-                nueva_poblacion.append(poblacion[idx_mejor][:])
-
+                nueva.append(pop[fits.index(max(fits))][:])
             elif r < PR + PC:
-                # Crossover seguido de mutación
-                p1 = seleccion_torneo(poblacion)
-                p2 = seleccion_torneo(poblacion)
-                h1, h2 = crossover(p1, p2)
-                h1 = mutacion(h1)
-                h2 = mutacion(h2)
-                nueva_poblacion.append(h1)
-                if len(nueva_poblacion) < POP_SIZE:
-                    nueva_poblacion.append(h2)
-
+                h1, h2 = crossover(seleccion_torneo(pop), seleccion_torneo(pop))
+                nueva += [mutacion(h1), mutacion(h2)]
             else:
-                # Mutación pura
-                ind = seleccion_torneo(poblacion)
-                nueva_poblacion.append(mutacion(ind))
+                nueva.append(mutacion(seleccion_torneo(pop)))
+        pop = nueva[:POP_SIZE]
 
-        # Reemplazo generacional completo
-        poblacion = nueva_poblacion[:POP_SIZE]
+    fits  = [calcular_fitness(ind) for ind in pop]
+    mejor = pop[fits.index(max(fits))]
+    return {"mejor": mejor, "mejor_historia": mejor_h, "prom_historia": prom_h,
+            "div_historia": div_h, "generaciones": len(mejor_h)}
 
-    # Evaluación final
-    fitnesses  = [calcular_fitness(ind) for ind in poblacion]
-    idx_mejor  = fitnesses.index(max(fitnesses))
-    mejor_ind  = poblacion[idx_mejor]
 
-    return {
-        "mejor":         mejor_ind,
-        "mejor_historia": mejor_historia,
-        "prom_historia":  prom_historia,
-        "div_historia":   div_historia,
-        "generaciones":   len(mejor_historia),
-    }
-
-def mostrar_resultado(resultado: dict) -> None:
-    mejor = resultado["mejor"]
+def mostrar_resultado(res):
+    mejor = res["mejor"]
     peso, valor = peso_y_valor(mejor)
+    print("\n" + "=" * 52)
+    print("   RESULTADO FINAL - INVENTARIO DE FALLOUT")
+    print("=" * 52)
+    print(f"{'ITEM':<22} {'PESO':>5} {'VALOR':>6}  INC")
+    print("-" * 44)
+    for i, (n, w, v) in enumerate(ITEMS):
+        print(f"{n:<22} {w:>5} {v:>6}  {'[SI]' if mejor[i] else '[NO]'}")
+    print("-" * 44)
+    print(f"{'TOTAL':<22} {peso:>5.0f} {valor:>6.0f}")
+    print(f"\nCapacidad : {peso:.0f}/{PESO_MAXIMO} kg  |  Fitness: {calcular_fitness(mejor):.2f}")
+    print(f"Cromosoma : [{''.join(str(g) for g in mejor)}]  |  Generaciones: {res['generaciones']}")
+    print("=" * 52)
 
-    print("\n" + "=" * 58)
-    print("   RESULTADO FINAL — INVENTARIO DE FALLOUT")
-    print("=" * 58)
-    print(f"\n{'ITEM':<22} {'PESO':>6} {'VALOR':>7}  INCLUIDO")
-    print("-" * 50)
-    for i, (nombre, peso_i, valor_i) in enumerate(ITEMS):
-        marca = "  [SI]" if mejor[i] == 1 else "  [NO]"
-        print(f"{nombre:<22} {peso_i:>6} {valor_i:>7}{marca}")
-    print("-" * 50)
-    print(f"{'TOTAL':<22} {peso:>6.1f} {valor:>7.0f}")
-    print(f"\nCapacidad usada : {peso:.1f} / {PESO_MAXIMO} kg")
-    print(f"Fitness final   : {calcular_fitness(mejor):.2f}")
-    print(f"Generaciones    : {resultado['generaciones']}")
-    cromosoma_str = "".join(str(g) for g in mejor)
-    print(f"Cromosoma       : [{cromosoma_str}]")
-    print("=" * 58)
 
-# Generación de gráficas: evolución del fitness, diversidad e inventario final
-def graficar(resultado: dict, path_out: str = None):
-    if path_out is None:
-        path_out = os.path.join(_SCRIPT_DIR, "ga_fusion.png")
-    mejor   = resultado["mejor"]
-    bh      = resultado["mejor_historia"]
-    ph      = resultado["prom_historia"]
-    dh      = resultado["div_historia"]
-    gens    = range(len(bh))
+# ── PRUEBAS ────────────────────────────────────────────────
+def correr_pruebas():
+    ok = fail = 0
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5))
-    fig.suptitle("Algoritmo Genetico Fusionado — Mochila de Fallout",
-                 fontsize=14, fontweight="bold", color="#1a1a2e")
-    fig.patch.set_facecolor("#f0f0f0")
+    def prueba(nombre, cond, detalle=""):
+        nonlocal ok, fail
+        if cond: ok += 1
+        else:    fail += 1
+        det = f" ({detalle})" if detalle else ""
+        print(f"  [{'PASS' if cond else 'FAIL'}] {nombre}{det}")
 
-    # Panel 1: Evolución del fitness
-    axes[0].set_facecolor("#1a1a2e")
-    axes[0].plot(gens, bh, color="#00ff41", linewidth=2, label="Mejor fitness")
-    axes[0].plot(gens, ph, color="#4ecdc4", linewidth=1.5,
-                 linestyle="--", label="Promedio")
-    axes[0].fill_between(gens, ph, bh, alpha=0.15, color="#00ff41")
-    axes[0].set_title("Evolucion del Fitness", color="white")
-    axes[0].set_xlabel("Generacion", color="white")
-    axes[0].set_ylabel("Fitness", color="white")
-    axes[0].tick_params(colors="white")
-    axes[0].legend(facecolor="#2d2d2d", labelcolor="white")
-    axes[0].grid(True, alpha=0.2, color="white")
-    for spine in axes[0].spines.values():
-        spine.set_edgecolor("#00ff41")
+    def sec(t): print(f"\n--- {t} ---")
 
-    # Panel 2: Diversidad de la población
-    axes[1].set_facecolor("#1a1a2e")
-    axes[1].plot(gens, dh, color="#ffd700", linewidth=2)
-    axes[1].axhline(y=POP_SIZE, color="#ff6b6b", linestyle=":",
-                    label=f"Max ({POP_SIZE})")
-    axes[1].set_title("Diversidad de la Poblacion", color="white")
-    axes[1].set_xlabel("Generacion", color="white")
-    axes[1].set_ylabel("Individuos unicos", color="white")
-    axes[1].tick_params(colors="white")
-    axes[1].legend(facecolor="#2d2d2d", labelcolor="white")
-    axes[1].grid(True, alpha=0.2, color="white")
-    for spine in axes[1].spines.values():
-        spine.set_edgecolor("#ffd700")
+    # 1. Fitness
+    sec("1. calcular_fitness")
+    prueba("Vacio -> 0",           calcular_fitness([0]*N_GENES) == 0.0)
+    prueba("Solo Stimpak -> 10",   calcular_fitness([1,0,0,0,0,0,0,0]) == 10.0)
+    prueba("Solo Servo -> 100",    calcular_fitness([0,0,0,1,0,0,0,0]) == 100.0)
+    p, v = peso_y_valor([1]*N_GENES)
+    prueba("Todos -> penalizacion", calcular_fitness([1]*N_GENES) == max(0.0, v - max(0, p-PESO_MAXIMO)*8))
+    p_l, v_l = peso_y_valor([1,0,0,1,0,0,0,1])   # 30 kg exactos
+    prueba("30 kg exactos -> sin penalizacion",
+           calcular_fitness([1,0,0,1,0,0,0,1]) == v_l and p_l == PESO_MAXIMO)
 
-    # Panel 3: Inventario de la solución final
-    axes[2].set_facecolor("#1a1a2e")
-    nombres = [it[0] for it in ITEMS]
-    valores = [it[2] for it in ITEMS]
-    colors  = ["#00ff41" if mejor[i] == 1 else "#333333"
-               for i in range(N_GENES)]
+    # 2. Poblacion
+    sec("2. make_population")
+    random.seed(0); pop = make_population(50)
+    prueba("Tamano 50",   len(pop) == 50)
+    prueba("N_GENES genes por individuo", all(len(ind) == N_GENES for ind in pop))
+    prueba("Solo bits 0/1", all(g in (0,1) for ind in pop for g in ind))
+    prueba("Hay variedad", len(set(tuple(i) for i in pop)) > 1)
 
-    bars = axes[2].barh(nombres, valores, color=colors,
-                        edgecolor="#555555", height=0.6)
-    for bar, it, sel in zip(bars, ITEMS, mejor):
-        if sel == 1:
-            axes[2].text(bar.get_width() + 0.5,
-                         bar.get_y() + bar.get_height() / 2,
-                         f"{it[1]}kg", va="center", fontsize=8,
-                         color="#00ff41")
+    # 3. Seleccion por torneo
+    sec("3. seleccion_torneo")
+    random.seed(1); pop_t = make_population(20)
+    sel = seleccion_torneo(pop_t, k=3)
+    prueba("Devuelve lista de N_GENES", isinstance(sel, list) and len(sel) == N_GENES)
+    prueba("Solo bits validos", all(g in (0,1) for g in sel))
+    pop_m = [[1,1,1,0,0,0,0,0]]*25 + [[0,0,0,0,0,0,0,0]]*25
+    p_t = sum(calcular_fitness(seleccion_torneo(pop_m, 3)) for _ in range(200)) / 200
+    p_a = sum(calcular_fitness(random.choice(pop_m))       for _ in range(200)) / 200
+    prueba("Torneo favorece mejor fitness", p_t > p_a, f"torneo={p_t:.1f} azar={p_a:.1f}")
 
-    axes[2].set_title("Inventario Final", color="white")
-    axes[2].set_xlabel("Valor", color="white")
-    axes[2].tick_params(colors="white")
-    verde = mpatches.Patch(color="#00ff41", label="Seleccionado")
-    gris  = mpatches.Patch(color="#333333", label="No incluido",
-                           edgecolor="#555555")
-    axes[2].legend(handles=[verde, gris], facecolor="#2d2d2d",
-                   labelcolor="white", fontsize=8)
-    axes[2].grid(True, axis="x", alpha=0.2, color="white")
-    for spine in axes[2].spines.values():
-        spine.set_edgecolor("#ffd700")
+    # 4. Crossover
+    sec("4. crossover")
+    random.seed(2); p1, p2 = [1]*N_GENES, [0]*N_GENES
+    puntos = set()
+    for _ in range(200):
+        h1, h2 = crossover(p1, p2)
+        for i in range(1, N_GENES):
+            if h1[i] != h1[i-1]: puntos.add(i); break
+    prueba("Hijos tienen N_GENES genes", len(h1) == N_GENES and len(h2) == N_GENES)
+    prueba("Punto de corte aleatorio",   len(puntos) > 3, f"puntos={sorted(puntos)}")
+    prueba("Padres no se modifican",     p1 == [1]*N_GENES and p2 == [0]*N_GENES)
 
-    plt.tight_layout()
-    plt.savefig(path_out, dpi=150, bbox_inches="tight",
-                facecolor=fig.get_facecolor())
-    print(f"Grafica guardada: {path_out}")
-    return path_out
+    # 5. Mutacion
+    sec("5. mutacion")
+    random.seed(3); orig = [1,0,1,0,1,0,1,0]
+    cambios = sum(1 for _ in range(500) if mutacion(orig[:]) != orig)
+    prueba("Muta en >50% de casos",  cambios > 250, f"{cambios}/500")
+    prueba("Longitud conservada",    len(mutacion(orig)) == N_GENES)
+    prueba("Solo bits 0/1",         all(g in (0,1) for g in mutacion(orig)))
+    prueba("Original no se altera", orig == [1,0,1,0,1,0,1,0])
 
+    # 6. Probabilidades
+    sec("6. PC + PM + PR = 1")
+    prueba("Suma == 1.0", abs(PC+PM+PR-1.0) < 1e-9, f"{PC}+{PM}+{PR}={PC+PM+PR:.4f}")
+    prueba("PC es el mayor",  PC > PM and PC > PR)
+
+    # 7. Integracion
+    sec("7. ejecutar_ag (integracion)")
+    print("  Ejecutando AG...")
+    res = ejecutar_ag(verbose=False)
+    mej = res["mejor"]; bh = res["mejor_historia"]; ph = res["prom_historia"]
+    dh = res["div_historia"]; gens = res["generaciones"]
+    p_f, _ = peso_y_valor(mej)
+    prueba("Devuelve resultado",         "mejor" in res)
+    prueba("Cromosoma N_GENES genes",    len(mej) == N_GENES)
+    prueba("Cromosoma binario",          all(g in (0,1) for g in mej))
+    prueba("Peso <= maximo",             p_f <= PESO_MAXIMO, f"{p_f}<={PESO_MAXIMO}")
+    prueba("Fitness mejora o mantiene",  bh[-1] >= bh[0], f"{bh[0]:.1f}->{bh[-1]:.1f}")
+    prueba("Promedio <= mejor siempre",  all(ph[i] <= bh[i]+1e-9 for i in range(len(bh))))
+    prueba("Diversidad inicial alta",    dh[0] > 10, f"dh[0]={dh[0]}")
+    prueba("Converge antes del maximo",  gens < MAX_GEN, f"gen={gens}")
+    prueba("Fitness final >= 100",       calcular_fitness(mej) >= 100, f"fit={calcular_fitness(mej):.1f}")
+
+    # 8. Casos borde
+    sec("8. Casos borde")
+    prueba("Servo sola -> fit 100",         calcular_fitness([0,0,0,1,0,0,0,0]) == 100.0)
+    prueba("Servo+Rifle (35kg) penalizado", calcular_fitness([0,0,1,1,0,0,0,0]) < 150)
+    try:
+        s = seleccion_torneo([[1,0,0,0,0,0,0,0]], k=1)
+        prueba("Torneo k=1 no lanza error",   len(s) == N_GENES)
+    except Exception as e:
+        prueba("Torneo k=1 no lanza error", False, str(e))
+    h1i, h2i = crossover([1,0]*4, [1,0]*4)
+    prueba("Crossover padres iguales -> hijos iguales", h1i == [1,0]*4 and h2i == [1,0]*4)
+
+    # Resumen
+    total = ok + fail
+    print(f"\n{'='*46}")
+    print(f"  RESUMEN: {ok}/{total} pruebas pasaron", end="")
+    print(f"  ({fail} fallidas)" if fail else "")
+    print(f"{'='*46}")
+    sys.exit(0 if fail == 0 else 1)
+
+
+# ── MAIN ───────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("=" * 58)
-    print("  ALGORITMO GENETICO FUSIONADO — FALLOUT KNAPSACK")
-    print(f"  POP={POP_SIZE} | PC={PC} | PM={PM} | PR={PR}")
-    print(f"  PC+PM+PR = {PC+PM+PR:.2f} | Peso max: {PESO_MAXIMO}kg")
-    print("=" * 58)
-
-    resultado = ejecutar_ag(verbose=True)
-    mostrar_resultado(resultado)
-    graficar(resultado)
+    if "--test" in sys.argv:
+        correr_pruebas()
+    else:
+        print(f"AG Fallout Knapsack - POP={POP_SIZE} PC={PC} PM={PM} PR={PR}")
+        mostrar_resultado(ejecutar_ag(verbose=True))
